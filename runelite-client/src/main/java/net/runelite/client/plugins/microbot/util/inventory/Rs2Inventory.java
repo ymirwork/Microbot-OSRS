@@ -1,12 +1,7 @@
 package net.runelite.client.plugins.microbot.util.inventory;
 
-import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.MenuAction;
-import net.runelite.api.NPC;
+import net.runelite.api.*;
 import net.runelite.api.Point;
-import net.runelite.api.TileObject;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
@@ -35,18 +30,9 @@ import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.event.Level;
 
-import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -296,7 +282,20 @@ public class Rs2Inventory {
      * @return True if the inventory contains all the specified names, false otherwise.
      */
     public static boolean contains(String... names) {
-        return contains(item -> Arrays.stream(names).anyMatch(name -> name.equalsIgnoreCase(item.getName())));
+        return contains(true, names);
+    }
+
+    public static boolean contains(boolean exact, String... names) {
+        if(exact) {
+            return contains(item -> Arrays.stream(names).anyMatch(name -> name.equalsIgnoreCase(item.getName())));
+        }
+        else {
+            return contains(item -> Arrays.stream(names).map(String::toLowerCase).anyMatch(name -> item.getName().toLowerCase().contains(name)));
+        }
+    }
+
+    public static boolean contains(String name, boolean exact) {
+        return contains(exact, name);
     }
 
     /**
@@ -563,6 +562,87 @@ public class Rs2Inventory {
      */
     public static boolean dropAllExcept(Predicate<Rs2ItemModel> predicate) {
         return dropAll(predicate.negate());
+    }
+
+    /**
+     * Drops a specific number of items matching the given name with the specified drop order.
+     *
+     * @param itemName The name of the items to drop
+     * @param quantity The number of items to drop
+     * @param dropOrder The order in which to drop the items
+     * @return actual number of items dropped
+     */
+    public static int dropAmount(String itemName, int quantity, InteractOrder dropOrder) {
+        return dropAmount(itemName, quantity, dropOrder, false);
+    }
+
+    /**
+     * Drops a specific number of items matching the given name with the specified drop order.
+     *
+     * @param itemName The name of the items to drop
+     * @param quantity The number of items to drop
+     * @param dropOrder The order in which to drop the items
+     * @param exact Whether to use exact name matching
+     * @return actual number of items dropped
+     */
+    public static int dropAmount(String itemName, int quantity, InteractOrder dropOrder, boolean exact) {
+        if (quantity <= 0) return 0;
+        
+        List<Rs2ItemModel> matchingItems = items(Rs2ItemModel.matches(exact, itemName))
+                .collect(Collectors.toList());
+        
+        if (matchingItems.isEmpty()) return 0;
+        
+        int itemsToDrop = Math.min(quantity, matchingItems.size());
+        List<Rs2ItemModel> sortedItems = calculateInteractOrder(matchingItems, dropOrder);
+        
+        int droppedCount = 0;
+        for (Rs2ItemModel item : sortedItems) {
+            if (droppedCount >= itemsToDrop) break;
+            if (item == null) continue;
+            
+            invokeMenu(item, "Drop");
+            droppedCount++;
+            
+            if (!Rs2AntibanSettings.naturalMouse)
+                sleep(150, 300);
+        }
+        
+        return droppedCount;
+    }
+
+    /**
+     * Drops a specific number of items matching the given item ID with the specified drop order.
+     *
+     * @param itemId The ID of the items to drop
+     * @param quantity The number of items to drop
+     * @param dropOrder The order in which to drop the items
+     * @return actual number of items dropped
+     */
+    public static int dropAmount(int itemId, int quantity, InteractOrder dropOrder) {
+        if (quantity <= 0) return 0;
+        
+        List<Rs2ItemModel> matchingItems = items(Rs2ItemModel.matches(itemId))
+                .collect(Collectors.toList());
+        
+        if (matchingItems.isEmpty()) return 0;
+        
+        int itemsToDrop = Math.min(quantity, matchingItems.size());
+        List<Rs2ItemModel> sortedItems = calculateInteractOrder(matchingItems, dropOrder);
+        
+        int droppedCount = 0;
+        for (Rs2ItemModel item : sortedItems) {
+            if (droppedCount >= itemsToDrop) break;
+            if (item == null) continue;
+            
+            invokeMenu(item, "Drop");
+            droppedCount++;
+            
+            if (!Rs2AntibanSettings.naturalMouse)
+                sleep(150, 300);
+        }
+        
+        return droppedCount;
     }
 
     /**
